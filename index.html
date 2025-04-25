@@ -1,1 +1,299 @@
-<h1>Hello, world</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bath Spa Train Station Finder</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #f5f5f5;
+            color: #333;
+            text-align: center;
+        }
+        
+        .container {
+            width: 90%;
+            max-width: 400px;
+        }
+        
+        h1 {
+            color: #0065a4;
+            margin-bottom: 20px;
+        }
+        
+        .compass {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            margin: 30px auto;
+        }
+        
+        .compass-background {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .arrow {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            top: 50%;
+            left: 50%;
+            transform-origin: left center;
+            margin-top: -20px;
+        }
+        
+        .distance {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        
+        .coordinates {
+            font-size: 14px;
+            color: #666;
+            margin-top: 30px;
+        }
+        
+        .permission-btn {
+            background: #0065a4;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            box-shadow: 0 2px 10px rgba(0, 101, 164, 0.3);
+        }
+        
+        .error {
+            color: #d32f2f;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Bath Spa Station Finder</h1>
+        <p>Point your phone toward the arrow to find Bath Spa train station</p>
+        
+        <div class="compass">
+            <div class="compass-background">
+                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iIzAwNjVhNCIgZD0iTTQsMTBMMTIsMThMMjAsMTBIMTdWMTRIN1YxMEg0TTEyLDNMMTIsMTFNMTIsMTVMMTIsMjEiLz48L3N2Zz4=" 
+                     class="arrow" id="arrow" alt="Direction arrow">
+            </div>
+        </div>
+        
+        <div class="distance" id="distance">-- km</div>
+        <div class="coordinates" id="coordinates">Getting location...</div>
+        
+        <button class="permission-btn" id="permissionBtn">Enable Location</button>
+        <div class="error" id="error"></div>
+    </div>
+
+    <script>
+        // Bath Spa Train Station coordinates
+        const BATH_SPA_STATION = {
+            lat: 51.3779,
+            lng: -2.3570
+        };
+        
+        // DOM elements
+        const arrow = document.getElementById('arrow');
+        const distanceElement = document.getElementById('distance');
+        const coordinatesElement = document.getElementById('coordinates');
+        const permissionBtn = document.getElementById('permissionBtn');
+        const errorElement = document.getElementById('error');
+        
+        // Variables to store current position and heading
+        let currentPosition = null;
+        let currentHeading = null;
+        
+        // Check for geolocation support
+        if (!navigator.geolocation) {
+            showError("Geolocation is not supported by your browser");
+        }
+        
+        // Check for device orientation support
+        if (!window.DeviceOrientationEvent) {
+            showError("Device orientation is not supported");
+        }
+        
+        // Request permission button
+        permissionBtn.addEventListener('click', () => {
+            requestLocation();
+        });
+        
+        // Request location permission
+        function requestLocation() {
+            permissionBtn.style.display = 'none';
+            errorElement.textContent = '';
+            
+            // Request compass permission on iOS 13+
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(response => {
+                        if (response === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientation);
+                            startGeolocation();
+                        } else {
+                            showError("Compass permission denied");
+                        }
+                    })
+                    .catch(console.error);
+            } else {
+                // Android and other browsers
+                window.addEventListener('deviceorientation', handleOrientation);
+                startGeolocation();
+            }
+        }
+        
+        // Start geolocation tracking
+        function startGeolocation() {
+            navigator.geolocation.watchPosition(
+                handlePosition,
+                positionError,
+                { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+            );
+        }
+        
+        // Handle position updates
+        function handlePosition(position) {
+            currentPosition = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude
+            };
+            
+            coordinatesElement.textContent = 
+                `Your location: ${currentPosition.lat.toFixed(4)}, ${currentPosition.lng.toFixed(4)}`;
+            
+            if (currentHeading !== null) {
+                updateArrow();
+            }
+        }
+        
+        // Handle orientation updates
+        function handleOrientation(event) {
+            if (event.webkitCompassHeading !== undefined) {
+                // iOS
+                currentHeading = event.webkitCompassHeading;
+            } else if (event.absolute && event.alpha !== null) {
+                // Android
+                currentHeading = 360 - event.alpha;
+            }
+            
+            if (currentPosition !== null) {
+                updateArrow();
+            }
+        }
+        
+        // Update arrow direction and distance
+        function updateArrow() {
+            if (!currentPosition || currentHeading === null) return;
+            
+            // Calculate bearing to Bath Spa station
+            const bearing = calculateBearing(
+                currentPosition.lat, 
+                currentPosition.lng,
+                BATH_SPA_STATION.lat,
+                BATH_SPA_STATION.lng
+            );
+            
+            // Calculate angle between device heading and target bearing
+            const angle = (bearing - currentHeading + 360) % 360;
+            
+            // Rotate the arrow
+            arrow.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+            
+            // Calculate distance
+            const distance = calculateDistance(
+                currentPosition.lat,
+                currentPosition.lng,
+                BATH_SPA_STATION.lat,
+                BATH_SPA_STATION.lng
+            );
+            
+            // Update distance display
+            if (distance < 1) {
+                distanceElement.textContent = `${(distance * 1000).toFixed(0)} meters`;
+            } else {
+                distanceElement.textContent = `${distance.toFixed(2)} km`;
+            }
+        }
+        
+        // Calculate bearing between two points
+        function calculateBearing(lat1, lon1, lat2, lon2) {
+            const φ1 = lat1 * Math.PI / 180;
+            const φ2 = lat2 * Math.PI / 180;
+            const Δλ = (lon2 - lon1) * Math.PI / 180;
+            
+            const y = Math.sin(Δλ) * Math.cos(φ2);
+            const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+            const θ = Math.atan2(y, x);
+            
+            return (θ * 180 / Math.PI + 360) % 360;
+        }
+        
+        // Calculate distance between two points (Haversine formula)
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = 
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+        
+        // Handle geolocation errors
+        function positionError(error) {
+            let message = '';
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    message = "Location permission denied";
+                    permissionBtn.style.display = 'block';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    message = "Location information unavailable";
+                    break;
+                case error.TIMEOUT:
+                    message = "Location request timed out";
+                    break;
+                case error.UNKNOWN_ERROR:
+                    message = "An unknown error occurred";
+                    break;
+            }
+            showError(message);
+        }
+        
+        function showError(message) {
+            errorElement.textContent = message;
+            console.error(message);
+        }
+        
+        // Try to start automatically (may not work without user interaction)
+        setTimeout(() => {
+            if (!currentPosition && !errorElement.textContent) {
+                permissionBtn.style.display = 'block';
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
