@@ -1,186 +1,73 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Bath Spa Compass</title>
+    <title>Magnetometer Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
         body {
             font-family: Arial, sans-serif;
             text-align: center;
+            padding: 20px;
+        }
+        #output {
             margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
         }
-        #compass {
-            width: 200px;
-            height: 200px;
-            margin: 20px auto;
-            position: relative;
-            background: #f0f0f0;
-            border-radius: 50%;
-        }
-        #arrow {
-            position: absolute;
-            width: 40px;
-            height: 40px;
-            top: 50%;
-            left: 50%;
-            transform-origin: left center;
-            margin-top: -20px;
-        }
-        #distance {
-            font-size: 24px;
-            margin: 20px;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 18px;
-            margin: 10px;
-        }
-        .labels {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            top: 0;
-            left: 0;
-        }
-        .label {
-            position: absolute;
-            font-weight: bold;
-        }
-        .north { top: 5px; left: 50%; transform: translateX(-50%); }
-        .east { top: 50%; right: 5px; transform: translateY(-50%); }
-        .south { bottom: 5px; left: 50%; transform: translateX(-50%); }
-        .west { top: 50%; left: 5px; transform: translateY(-50%); }
     </style>
 </head>
 <body>
-    <h1>Bath Spa Compass</h1>
-    <button onclick="startCompass()">Start Compass</button>
+    <h1>Magnetometer Test</h1>
+    <p>This page displays compass heading information from your device's magnetometer.</p>
     
-    <div id="compass">
-        <img id="arrow" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmMDAwMCIgZD0iTTQsMTBMMTIsMThMMjAsMTBIMTdWMTRIN1YxMEg0TTEyLDNMMTIsMTVNMTIsMTVMMTIsMjEiLz48L3N2Zz4=" alt="Arrow">
-        <div class="labels">
-            <div class="label north">N</div>
-            <div class="label east">E</div>
-            <div class="label south">S</div>
-            <div class="label west">W</div>
-        </div>
-    </div>
+    <div id="output">Waiting for sensor data...</div>
     
-    <div id="distance">Press button to start</div>
-
     <script>
-        // Bath Spa Station coordinates
-        const bathSpa = {
-            lat: 51.3779,
-            lng: -2.3570
-        };
+        const output = document.getElementById('output');
         
-        let watchId = null;
-
-        function startCompass() {
-            if (window.DeviceOrientationEvent) {
-                // Request permission on iOS 13+
-                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        if (window.DeviceOrientationEvent) {
+            window.addEventListener('deviceorientation', function(event) {
+                if (event.webkitCompassHeading !== undefined) {
+                    // Chrome on Android
+                    output.innerHTML = `
+                        <strong>Compass Heading:</strong> ${event.webkitCompassHeading.toFixed(2)}°<br>
+                        <strong>Accuracy:</strong> ±${event.webkitCompassAccuracy.toFixed(2)}°<br>
+                        <small>(X: ${event.alpha?.toFixed(2) || 'N/A'}, Y: ${event.beta?.toFixed(2) || 'N/A'}, Z: ${event.gamma?.toFixed(2) || 'N/A'})</small>
+                    `;
+                    
+                    // Also log to console
+                    console.log("Compass Heading:", event.webkitCompassHeading);
+                    console.log("Accuracy:", event.webkitCompassAccuracy);
+                } else if (event.absolute !== undefined && event.alpha !== null) {
+                    // Other browsers
+                    output.innerHTML = `
+                        <strong>Alpha (z-axis):</strong> ${event.alpha.toFixed(2)}°<br>
+                        <strong>Beta (x-axis):</strong> ${event.beta.toFixed(2)}°<br>
+                        <strong>Gamma (y-axis):</strong> ${event.gamma.toFixed(2)}°<br>
+                        <small>(Absolute: ${event.absolute})</small>
+                    `;
+                }
+            });
+            
+            // Handle permission requests in newer versions of Chrome
+            if (DeviceOrientationEvent.requestPermission) {
+                document.body.onclick = function() {
                     DeviceOrientationEvent.requestPermission()
                         .then(response => {
-                            if (response === 'granted') {
-                                setupCompass();
-                                getLocation();
+                            if (response == 'granted') {
+                                output.textContent = "Permission granted - move your device to see data";
                             } else {
-                                document.getElementById('distance').innerHTML = 
-                                    "Compass permission denied";
+                                output.textContent = "Permission denied";
                             }
                         })
                         .catch(console.error);
-                } else {
-                    // Android/other browsers
-                    setupCompass();
-                    getLocation();
-                }
-            } else {
-                document.getElementById('distance').innerHTML = 
-                    "Device orientation not supported";
+                };
+                output.textContent = "Click anywhere to request sensor permission";
             }
-        }
-
-        function setupCompass() {
-            window.addEventListener('deviceorientation', function(event) {
-                if (event.webkitCompassHeading !== undefined) {
-                    // iOS
-                    rotateCompass(event.webkitCompassHeading);
-                } else if (event.absolute && event.alpha !== null) {
-                    // Android
-                    rotateCompass(360 - event.alpha);
-                }
-            });
-        }
-
-        function rotateCompass(heading) {
-            document.getElementById('arrow').style.transform = 
-                `translate(-50%, -50%) rotate(${heading}deg)`;
-        }
-
-        function getLocation() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    showDistance,
-                    showError,
-                    { enableHighAccuracy: true, timeout: 10000 }
-                );
-                // Watch position for continuous updates
-                watchId = navigator.geolocation.watchPosition(
-                    showDistance,
-                    showError,
-                    { enableHighAccuracy: true }
-                );
-            } else {
-                document.getElementById('distance').innerHTML = 
-                    "Geolocation not supported";
-            }
-        }
-
-        function showDistance(position) {
-            const userLat = position.coords.latitude;
-            const userLng = position.coords.longitude;
-            
-            const distance = calculateDistance(userLat, userLng, bathSpa.lat, bathSpa.lng);
-            
-            const distanceElement = document.getElementById('distance');
-            if (distance < 1) {
-                distanceElement.innerHTML = `${Math.round(distance * 1000)}m from Bath Spa Station`;
-            } else {
-                distanceElement.innerHTML = `${distance.toFixed(2)}km from Bath Spa Station`;
-            }
-        }
-
-        function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; // Earth radius in km
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = 
-                Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c;
-        }
-
-        function showError(error) {
-            let message = "Error: ";
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    message += "Location permission denied";
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    message += "Location unavailable";
-                    break;
-                case error.TIMEOUT:
-                    message += "Request timed out";
-                    break;
-                case error.UNKNOWN_ERROR:
-                    message += "Unknown error";
-                    break;
-            }
-            document.getElementById('distance').innerHTML = message;
+        } else {
+            output.textContent = "Device orientation not supported on this browser/device";
         }
     </script>
 </body>
