@@ -1,198 +1,46 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Direction Arrow</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            margin: 0;
-            padding: 20px;
-            overflow: hidden;
-        }
-        #compass {
-            width: 200px;
-            height: 200px;
-            margin: 40px auto;
-            position: relative;
-        }
-        #arrow {
-            width: 0;
-            height: 0;
-            border-left: 20px solid transparent;
-            border-right: 20px solid transparent;
-            border-bottom: 100px solid red;
-            position: absolute;
-            left: 80px;
-            top: 50px;
-            transform-origin: 50% 100%;
-            transition: transform 0.1s ease-out;
-        }
-        #info {
-            margin-top: 30px;
-            font-size: 1.2em;
-        }
-        #calibration-warning {
-            color: red;
-            display: none;
-        }
-    </style>
-</head>
-<body>
-    <h1>Direction Finder</h1>
-    <div id="compass">
-        <div id="arrow"></div>
-    </div>
-    <div id="info">
-        <div id="distance">--</div>
-        <div id="calibration-warning">Move your phone in a figure-8 pattern to calibrate</div>
-    </div>
-
-    <script>
-        // Configuration - Set your target location here
-        const TARGET_LOCATION = {
-            lat: 51.39772944073372, 
-            lon: -2.3449046770724036
-        };
-
-        // DOM Elements
-        const arrowElement = document.getElementById('arrow');
-        const distanceElement = document.getElementById('distance');
-        const calibrationWarning = document.getElementById('calibration-warning');
-
-        // State variables
-        let currentPosition = null;
-        let currentHeading = null;
-
-        // Initialize
-        function init() {
-            // Request permissions on iOS 13+ devices
-            if (typeof DeviceOrientationEvent !== 'undefined' && 
-                typeof DeviceOrientationEvent.requestPermission === 'function') {
-                document.body.addEventListener('click', function() {
-                    DeviceOrientationEvent.requestPermission()
-                        .then(response => {
-                            if (response === 'granted') {
-                                startSensors();
-                            }
-                        })
-                        .catch(console.error);
-                });
-            } else {
-                startSensors();
-            }
-        }
-
-        // Start all sensor listeners
-        function startSensors() {
-            // Start GPS
-            if ('geolocation' in navigator) {
-                navigator.geolocation.watchPosition(
-                    handlePositionUpdate,
-                    handlePositionError,
-                    { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
-                );
-            } else {
-                alert("Geolocation not supported");
-            }
-
-            // Start compass
-            if (window.DeviceOrientationEvent) {
-                window.addEventListener('deviceorientation', handleOrientation);
-            } else {
-                alert("Compass not supported");
-            }
-        }
-
-        // Handle position updates
-        function handlePositionUpdate(position) {
-            currentPosition = {
-                lat: position.coords.latitude,
-                lon: position.coords.longitude,
-                accuracy: position.coords.accuracy
-            };
-            updateUI();
-        }
-
-        function handlePositionError(error) {
-            console.error("GPS Error:", error.message);
-        }
-
-        // Handle orientation updates
-        function handleOrientation(event) {
-            // Check for iOS/Android differences
-            if (event.webkitCompassHeading !== undefined) {
-                // Chrome/Safari
-                currentHeading = event.webkitCompassHeading;
-                if (event.webkitCompassAccuracy > 15) {
-                    calibrationWarning.style.display = 'block';
-                } else {
-                    calibrationWarning.style.display = 'none';
-                }
-            } else if (event.absolute !== undefined && event.alpha !== null) {
-                // Firefox/other browsers
-                currentHeading = 360 - event.alpha;
-            }
-            updateUI();
-        }
-
-        // Update the arrow and distance display
-        function updateUI() {
-            if (!currentPosition || currentHeading === null) return;
-
-            // Calculate bearing to target
-            const bearing = calculateBearing(
-                currentPosition.lat, currentPosition.lon,
-                TARGET_LOCATION.lat, TARGET_LOCATION.lon
-            );
-
-            // Calculate relative angle between heading and bearing
-            let arrowAngle = (bearing - currentHeading + 360) % 360;
-            
-            // Rotate the arrow
-            arrowElement.style.transform = `rotate(${arrowAngle}deg)`;
-
-            // Calculate and display distance
-            const distance = calculateDistance(
-                currentPosition.lat, currentPosition.lon,
-                TARGET_LOCATION.lat, TARGET_LOCATION.lon
-            );
-            
-            distanceElement.textContent = `Distance: ${distance.toFixed(0)} meters`;
-        }
-
-        // Calculate bearing from point A to B (in degrees)
-        function calculateBearing(lat1, lon1, lat2, lon2) {
-            const φ1 = lat1 * Math.PI/180;
-            const φ2 = lat2 * Math.PI/180;
-            const Δλ = (lon2-lon1) * Math.PI/180;
-
-            const y = Math.sin(Δλ) * Math.cos(φ2);
-            const x = Math.cos(φ1)*Math.sin(φ2) -
-                      Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
-            let θ = Math.atan2(y, x);
-            return (θ*180/Math.PI + 360) % 360;
-        }
-
-        // Calculate distance between two points (in meters)
-        function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371e3; // Earth radius in meters
-            const φ1 = lat1 * Math.PI/180;
-            const φ2 = lat2 * Math.PI/180;
-            const Δφ = (lat2-lat1) * Math.PI/180;
-            const Δλ = (lon2-lon1) * Math.PI/180;
-
-            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                      Math.cos(φ1) * Math.cos(φ2) *
-                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-            return R * c;
-        }
-
-        // Start the app
-        init();
-    </script>
-</body>
+<!DOCTYPE html><html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Magnetometer Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head>
+  <body>
+    <h1>Magnetometer and WebGL Checks</h1>
+    <hr/>
+    <h2>Magnetometer Data:</h2>
+    <pre id="statusText">Waiting for JavaScript to run...</pre>
+    <h2>WebGL Check:</h2>
+    <pre id="webgldetected">Waiting for JavaScript to run...</pre>
+    <hr/>
+    <p>
+      If magnetometer data as well as WebGL are available, proceed to
+      <a href="./magnetic_vector.html">magnetic vector visualizer</a>.
+    </p>
+    <hr/>
+    <p>
+      <h4>Explanation of common errors:</h4>
+      <ul>
+        <li>
+          <pre>API not available</pre>
+          <p>
+            This browser does not expose
+            <a href="https://www.w3.org/TR/magnetometer">Magnetometer W3C Sensor API</a>
+            or at least not by default. On Android, it can be turned on by typing
+            "chrome://flags" into the address box then set "Generic Sensor Extra
+            Classes" to "Enabled". Other browsers/platforms will vary.
+          </p>
+        </li>
+        <li>
+          <pre>Error: Could not connect to a sensor</pre>
+          <p>
+            This browser exposes the Magnetometer API, but could not connect
+            to an actual magnetometer. This is normal if running on a desktop
+            computer which typically do not have an integrated magnetometer.
+            Try on an Android phone or other mobile device.
+          </p>
+        </li>
+      </ul>
+    </p>
+    <script src="./script.js"></script>
+  </body>
 </html>
