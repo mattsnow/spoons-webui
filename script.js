@@ -55,5 +55,10 @@ function contentLoaded() {
             webgldetected.textContent = 'Not supported by this browser';
         }
     }
+
+    let sensor = new Magnetometer();
+    sensor.start();
+    let heading = Math.atan2(sensor.y, sensor.x) * (180 / Math.PI);
+    console.log('Heading in degrees: ' + heading);
 }
 document.addEventListener('DOMContentLoaded', contentLoaded, false);
