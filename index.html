@@ -1,46 +1,65 @@
-<!DOCTYPE html><html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>Magnetometer Test</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-  </head>
-  <body>
-    <h1>Magnetometer and WebGL Checks</h1>
-    <hr/>
-    <h2>Magnetometer Data:</h2>
-    <pre id="statusText">Waiting for JavaScript to run...</pre>
-    <h2>WebGL Check:</h2>
-    <pre id="webgldetected">Waiting for JavaScript to run...</pre>
-    <hr/>
-    <p>
-      If magnetometer data as well as WebGL are available, proceed to
-      <a href="./magnetic_vector.html">magnetic vector visualizer</a>.
-    </p>
-    <hr/>
-    <p>
-      <h4>Explanation of common errors:</h4>
-      <ul>
-        <li>
-          <pre>API not available</pre>
-          <p>
-            This browser does not expose
-            <a href="https://www.w3.org/TR/magnetometer">Magnetometer W3C Sensor API</a>
-            or at least not by default. On Android, it can be turned on by typing
-            "chrome://flags" into the address box then set "Generic Sensor Extra
-            Classes" to "Enabled". Other browsers/platforms will vary.
-          </p>
-        </li>
-        <li>
-          <pre>Error: Could not connect to a sensor</pre>
-          <p>
-            This browser exposes the Magnetometer API, but could not connect
-            to an actual magnetometer. This is normal if running on a desktop
-            computer which typically do not have an integrated magnetometer.
-            Try on an Android phone or other mobile device.
-          </p>
-        </li>
-      </ul>
-    </p>
-    <script src="./script.js"></script>
-  </body>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compass Heading</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+        #headingValue {
+            font-size: 3em;
+            font-weight: bold;
+            color: #2c3e50;
+            margin: 20px 0;
+        }
+        #status {
+            color: #7f8c8d;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <h1>Compass Heading</h1>
+    <div id="headingValue">--°</div>
+    <div id="status">Waiting for sensor...</div>
+    
+    <script>
+        const headingElement = document.getElementById('headingValue');
+        const statusElement = document.getElementById('status');
+        
+        function updateHeading() {
+            try {
+                if (window.Magnetometer) {
+                    let sensor = new Magnetometer({ frequency: 10 });
+                    
+                    sensor.addEventListener('reading', () => {
+                        // Calculate heading in degrees (0-360)
+                        let heading = Math.atan2(sensor.y, sensor.x) * (180 / Math.PI);
+                        if (heading < 0) heading += 360; // Convert to 0-360 range
+                        
+                        headingElement.textContent = Math.round(heading) + '°';
+                        statusElement.textContent = "Sensor active";
+                    });
+                    
+                    sensor.addEventListener('error', event => {
+                        statusElement.textContent = "Error: " + event.error.name;
+                    });
+                    
+                    sensor.start();
+                } else {
+                    statusElement.textContent = "Magnetometer not supported in this browser/device";
+                }
+            } catch (error) {
+                statusElement.textContent = "Error: " + error.message;
+            }
+        }
+        
+        // Start when page loads
+        window.addEventListener('DOMContentLoaded', updateHeading);
+    </script>
+</body>
 </html>
