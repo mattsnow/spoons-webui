@@ -3,63 +3,162 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Compass Heading</title>
+    <title>True North Compass</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             text-align: center;
             margin-top: 50px;
         }
-        #headingValue {
-            font-size: 3em;
+        .value {
+            font-size: 2em;
             font-weight: bold;
+            margin: 10px 0;
+        }
+        #trueHeading {
             color: #2c3e50;
-            margin: 20px 0;
+        }
+        #magneticHeading {
+            color: #7f8c8d;
         }
         #status {
-            color: #7f8c8d;
+            color: #e74c3c;
             font-style: italic;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        .coordinates {
+            font-family: monospace;
+            color: #3498db;
         }
     </style>
 </head>
 <body>
-    <h1>Compass Heading</h1>
-    <div id="headingValue">--°</div>
-    <div id="status">Waiting for sensor...</div>
-    
+    <div class="container">
+        <h1>True North Compass</h1>
+        <div>Your location: <span class="coordinates">51.3781°N, 2.3570°W</span> (Bath, UK)</div>
+        
+        <div class="value" id="trueHeading">--° True</div>
+        <div class="value" id="magneticHeading">--° Magnetic</div>
+        <div id="declination">Declination: --°</div>
+        <div id="status">Initializing...</div>
+    </div>
+
     <script>
-        const headingElement = document.getElementById('headingValue');
+        // Bath coordinates
+        const latitude = 51.378069576889715;
+        const longitude = -2.3570327571335183;
+        
+        const trueHeadingElement = document.getElementById('trueHeading');
+        const magneticHeadingElement = document.getElementById('magneticHeading');
+        const declinationElement = document.getElementById('declination');
         const statusElement = document.getElementById('status');
         
-        function updateHeading() {
+        let magneticDeclination = 0;
+        let currentHeading = 0;
+
+        // Fetch magnetic declination from NOAA
+        function fetchDeclination() {
+            statusElement.textContent = "Fetching magnetic declination...";
+            
+            const url = `https://www.ngdc.noaa.gov/geomag-web/calculators/calculateDeclination` +
+                        `?lat1=${latitude}&lon1=${longitude}&resultFormat=csv&startYear=2023&startMonth=8&startDay=1`;
+            
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    return response.text();
+                })
+                .then(text => {
+                    // Parse the CSV response to get declination value
+                    const match = text.match(/-?\d+\.\d+/g);
+                    if (match && match[4]) {
+                        magneticDeclination = parseFloat(match[4]);
+                        
+                        declinationElement.textContent = 
+                            `Declination: ${magneticDeclination.toFixed(2)}° ` +
+                            (magneticDeclination >= 0 ? 'West' : 'East');
+                        
+                        statusElement.textContent = "Ready - rotate your device to see heading";
+                        startCompass();
+                    } else {
+                        throw new Error('Could not parse declination data');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    statusElement.textContent = "Using default declination (1.5° West)";
+                    // Default declination for Bath area (approx 1.5° West as of 2023)
+                    magneticDeclination = 1.5;
+                    startCompass();
+                });
+        }
+
+        // Start compass readings
+        function startCompass() {
             try {
                 if (window.Magnetometer) {
-                    let sensor = new Magnetometer({ frequency: 10 });
+                    const options = {
+                        frequency: 10,
+                        referenceFrame: 'device'
+                    };
+                    const sensor = new Magnetometer(options);
                     
                     sensor.addEventListener('reading', () => {
-                        // Calculate heading in degrees (0-360)
-                        let heading = Math.atan2(sensor.y, sensor.x) * (180 / Math.PI);
-                        if (heading < 0) heading += 360; // Convert to 0-360 range
+                        // Calculate magnetic heading (0-360)
+                        currentHeading = Math.atan2(sensor.y, sensor.x) * (180 / Math.PI);
+                        if (currentHeading < 0) currentHeading += 360;
                         
-                        headingElement.textContent = Math.round(heading) + '°';
-                        statusElement.textContent = "Sensor active";
+                        // Calculate true heading (compensate for declination)
+                        // For Bath: subtract declination (west is positive)
+                        const trueHeading = (currentHeading - magneticDeclination + 360) % 360;
+                        
+                        magneticHeadingElement.textContent = `${Math.round(currentHeading)}° Magnetic`;
+                        trueHeadingElement.textContent = `${Math.round(trueHeading)}° True`;
                     });
                     
                     sensor.addEventListener('error', event => {
-                        statusElement.textContent = "Error: " + event.error.name;
+                        statusElement.textContent = "Compass error: " + event.error.name;
+                        tryFallbackCompass();
                     });
                     
                     sensor.start();
                 } else {
-                    statusElement.textContent = "Magnetometer not supported in this browser/device";
+                    tryFallbackCompass();
                 }
             } catch (error) {
                 statusElement.textContent = "Error: " + error.message;
+                tryFallbackCompass();
             }
         }
-        
+
+        // Fallback to DeviceOrientation API if Magnetometer API not available
+        function tryFallbackCompass() {
+            statusElement.textContent = "Trying fallback compass method...";
+            
+            if (window.DeviceOrientationEvent && 'ontouchstart' in window) {
+                window.addEventListener('deviceorientation', function(event) {
+                    if (event.absolute === true && event.alpha !== null) {
+                        // alpha is compass heading (0-360)
+                        currentHeading = event.alpha;
+                        
+                        // Calculate true heading
+                        const trueHeading = (currentHeading - magneticDeclination + 360) % 360;
+                        
+                        magneticHeadingElement.textContent = `${Math.round(currentHeading)}° Magnetic`;
+                        trueHeadingElement.textContent = `${Math.round(trueHeading)}° True`;
+                        statusElement.textContent = "Using device orientation (may be less accurate)";
+                    }
+                }, true);
+            } else {
+                statusElement.textContent = "No compass sensors available on this device";
+            }
+        }
+
         // Start when page loads
-        window.addEventListener('DOMContentLoaded', updateHeading);
+        window.addEventListener('DOMContentLoaded', fetchDeclination);
     </script>
 </body>
 </html>
