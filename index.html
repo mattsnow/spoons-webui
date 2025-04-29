@@ -1,28 +1,40 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Simple Compass</title>
+    <title>Compass Check</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
         #heading { font-size: 3em; font-weight: bold; }
+        #warning { color: red; }
     </style>
 </head>
 <body>
-    <h1>Basic Compass</h1>
+    <h1>Compass Test</h1>
     <div id="heading">--°</div>
+    <div id="warning"></div>
 
     <script>
         const headingElement = document.getElementById('heading');
+        const warningElement = document.getElementById('warning');
 
-        // Check if DeviceOrientation is supported
         if (window.DeviceOrientationEvent) {
             window.addEventListener('deviceorientation', (event) => {
-                // Get compass heading (0°-360°)
-                const heading = event.alpha || 0;
+                if (event.alpha === null) {
+                    warningElement.textContent = "Compass data not available";
+                    return;
+                }
+
+                if (event.absolute === false) {
+                    warningElement.textContent = "⚠️ Using RELATIVE orientation (not true compass)";
+                } else {
+                    warningElement.textContent = "Using ABSOLUTE orientation (magnetic north)";
+                }
+
+                const heading = event.alpha; // 0°-360° (magnetic north if absolute)
                 headingElement.textContent = Math.round(heading) + '°';
             });
         } else {
-            headingElement.textContent = "Compass not supported";
+            warningElement.textContent = "DeviceOrientationEvent not supported";
         }
     </script>
 </body>
