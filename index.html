@@ -1,62 +1,29 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Pixel 6 Compass</title>
+    <title>Simple Compass</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
         #heading { font-size: 3em; font-weight: bold; }
     </style>
 </head>
 <body>
-    <h1>Pixel 6 Compass</h1>
+    <h1>Basic Compass</h1>
     <div id="heading">--°</div>
-    <div id="rawData">X: --, Y: --, Z: --</div>
 
     <script>
         const headingElement = document.getElementById('heading');
-        const rawDataElement = document.getElementById('rawData');
 
-        async function startCompass() {
-            try {
-                // Check if the Generic Sensor API is supported
-                if (!('Sensor' in window)) {
-                    throw new Error("Generic Sensor API not supported");
-                }
-
-                // Request permission and create sensor
-                const sensor = new window.Magnetometer({ frequency: 10, referenceFrame: 'device' });
-
-                sensor.addEventListener('reading', () => {
-                    // Pixel 6 compass calculation
-                    const heading = (Math.atan2(-sensor.x, sensor.y) * (180 / Math.PI) + 360) % 360;
-                    
-                    headingElement.textContent = Math.round(heading) + '°';
-                    rawDataElement.textContent = 
-                        `X: ${sensor.x.toFixed(2)}, Y: ${sensor.y.toFixed(2)}, Z: ${sensor.z.toFixed(2)}`;
-                });
-
-                sensor.addEventListener('error', (event) => {
-                    throw new Error(`Sensor error: ${event.error.message}`);
-                });
-
-                sensor.start();
-            } catch (error) {
-                headingElement.textContent = "Error: " + error.message;
-                console.error(error);
-            }
+        // Check if DeviceOrientation is supported
+        if (window.DeviceOrientationEvent) {
+            window.addEventListener('deviceorientation', (event) => {
+                // Get compass heading (0°-360°)
+                const heading = event.alpha || 0;
+                headingElement.textContent = Math.round(heading) + '°';
+            });
+        } else {
+            headingElement.textContent = "Compass not supported";
         }
-
-        // Check if device is in portrait mode
-        function checkOrientation() {
-            if (window.screen.orientation && !screen.orientation.type.includes('portrait')) {
-                alert("Please lock your phone in portrait mode for accurate readings");
-            }
-        }
-
-        window.addEventListener('DOMContentLoaded', () => {
-            checkOrientation();
-            startCompass();
-        });
     </script>
 </body>
 </html>
