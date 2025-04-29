@@ -27,7 +27,7 @@
                 // Calculate heading (0° = North, 90° = East)
                 const heading = Math.atan2(y, x) * (180 / Math.PI);
                 const normalizedHeading = (heading + 360) % 360;
-                headingElement.textContent = Math.round(normalizedHeading) + '°';
+                headingElement.textContent = Math.round(normalizedHeading + 11) + '°';
             });
 
             magnetometer.addEventListener('error', (err) => {
