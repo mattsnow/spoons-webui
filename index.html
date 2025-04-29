@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Pixel 6 Compass (Corrected)</title>
+    <title>Pixel 6 Compass (0-360 Range)</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
         #heading { font-size: 3em; font-weight: bold; }
@@ -21,10 +21,14 @@
             magnetometer.addEventListener('reading', () => {
                 // Pixel 6 axis correction
                 const x = magnetometer.y;   // Swap X and Y
-                const y = -magnetometer.x;   // Invert X (now Y)
+                const y = -magnetometer.x; // Invert X (now Y)
                 
-                // Calculate heading with correction factor
-                const heading = (Math.atan2(y, x) * (180 / Math.PI) + CORRECTION_FACTOR) % 360;
+                // Calculate raw heading (-180 to 180)
+                let heading = Math.atan2(y, x) * (180 / Math.PI);
+                
+                // Apply correction and normalize to 0-360
+                heading = (heading + CORRECTION_FACTOR + 360) % 360;
+                
                 headingElement.textContent = Math.round(heading) + '°';
             });
 
