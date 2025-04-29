@@ -16,12 +16,18 @@
         const headingElement = document.getElementById('heading');
         const rawDataElement = document.getElementById('rawData');
 
-        function startCompass() {
-            if (window.Magnetometer) {
-                const sensor = new Magnetometer({ frequency: 10, referenceFrame: 'device' });
+        async function startCompass() {
+            try {
+                // Check if the Generic Sensor API is supported
+                if (!('Sensor' in window)) {
+                    throw new Error("Generic Sensor API not supported");
+                }
+
+                // Request permission and create sensor
+                const sensor = new window.Magnetometer({ frequency: 10, referenceFrame: 'device' });
 
                 sensor.addEventListener('reading', () => {
-                    // Pixel 6-specific calculation
+                    // Pixel 6 compass calculation
                     const heading = (Math.atan2(-sensor.x, sensor.y) * (180 / Math.PI) + 360) % 360;
                     
                     headingElement.textContent = Math.round(heading) + '°';
@@ -29,23 +35,20 @@
                         `X: ${sensor.x.toFixed(2)}, Y: ${sensor.y.toFixed(2)}, Z: ${sensor.z.toFixed(2)}`;
                 });
 
-                sensor.addEventListener('error', event => {
-                    console.error("Compass error:", event.error);
-                    headingElement.textContent = "Error: " + event.error.message;
+                sensor.addEventListener('error', (event) => {
+                    throw new Error(`Sensor error: ${event.error.message}`);
                 });
 
                 sensor.start();
-            } else {
-                headingElement.textContent = "Magnetometer not supported";
+            } catch (error) {
+                headingElement.textContent = "Error: " + error.message;
+                console.error(error);
             }
         }
 
-        // Verify device orientation
+        // Check if device is in portrait mode
         function checkOrientation() {
-            if (window.screen.orientation) {
-                console.log("Current orientation:", screen.orientation.type);
-            }
-            if (window.orientation !== 0) {
+            if (window.screen.orientation && !screen.orientation.type.includes('portrait')) {
                 alert("Please lock your phone in portrait mode for accurate readings");
             }
         }
