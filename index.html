@@ -1,33 +1,31 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Compass</title>
+    <title>Pixel 6 Compass (Corrected)</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
         #heading { font-size: 3em; font-weight: bold; }
     </style>
 </head>
 <body>
-    <h1>Compass</h1>
+    <h1>Pixel 6 Compass</h1>
     <div id="heading">--°</div>
 
     <script>
         const headingElement = document.getElementById('heading');
+        const CORRECTION_FACTOR = 11; // Your +11 degree adjustment
 
         if ('Magnetometer' in window) {
             const magnetometer = new Magnetometer({ frequency: 10 });
 
             magnetometer.addEventListener('reading', () => {
-                // Pixel 6-specific correction:
-                // 1. Swap X and Y axes
-                // 2. Invert Y to match compass expectations
-                const x = magnetometer.y;  // Swap X and Y
-                const y = -magnetometer.x; // Invert X (now Y)
+                // Pixel 6 axis correction
+                const x = magnetometer.y;   // Swap X and Y
+                const y = -magnetometer.x;   // Invert X (now Y)
                 
-                // Calculate heading (0° = North, 90° = East)
-                const heading = Math.atan2(y, x) * (180 / Math.PI);
-                const normalizedHeading = (heading + 360) % 360;
-                headingElement.textContent = Math.round(normalizedHeading + 11) + '°';
+                // Calculate heading with correction factor
+                const heading = (Math.atan2(y, x) * (180 / Math.PI) + CORRECTION_FACTOR) % 360;
+                headingElement.textContent = Math.round(heading) + '°';
             });
 
             magnetometer.addEventListener('error', (err) => {
