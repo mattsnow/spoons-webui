@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Pixel 6 Compass (Fixed)</title>
+    <title>Compass</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
         #heading { font-size: 3em; font-weight: bold; }
     </style>
 </head>
 <body>
-    <h1>Pixel 6 Compass</h1>
+    <h1>Compass</h1>
     <div id="heading">--°</div>
 
     <script>
@@ -18,11 +18,15 @@
             const magnetometer = new Magnetometer({ frequency: 10 });
 
             magnetometer.addEventListener('reading', () => {
-                // Pixel 6 axis correction:
-                // - Use -Y for "east-west" (instead of X)
-                // - Use X for "north-south" (instead of Y)
-                const heading = Math.atan2(-magnetometer.y, magnetometer.x) * (180 / Math.PI);
-                const normalizedHeading = (heading + 360) % 360; // Ensure 0-360 range
+                // Pixel 6-specific correction:
+                // 1. Swap X and Y axes
+                // 2. Invert Y to match compass expectations
+                const x = magnetometer.y;  // Swap X and Y
+                const y = -magnetometer.x; // Invert X (now Y)
+                
+                // Calculate heading (0° = North, 90° = East)
+                const heading = Math.atan2(y, x) * (180 / Math.PI);
+                const normalizedHeading = (heading + 360) % 360;
                 headingElement.textContent = Math.round(normalizedHeading) + '°';
             });
 
