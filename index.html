@@ -1,40 +1,36 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Compass Check</title>
+    <title>Basic Magnetometer Compass</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
         #heading { font-size: 3em; font-weight: bold; }
-        #warning { color: red; }
     </style>
 </head>
 <body>
-    <h1>Compass Test</h1>
+    <h1>Magnetometer Compass</h1>
     <div id="heading">--°</div>
-    <div id="warning"></div>
 
     <script>
         const headingElement = document.getElementById('heading');
-        const warningElement = document.getElementById('warning');
 
-        if (window.DeviceOrientationEvent) {
-            window.addEventListener('deviceorientation', (event) => {
-                if (event.alpha === null) {
-                    warningElement.textContent = "Compass data not available";
-                    return;
-                }
+        if ('Magnetometer' in window) {
+            const magnetometer = new Magnetometer({ frequency: 10 });
 
-                if (event.absolute === false) {
-                    warningElement.textContent = "⚠️ Using RELATIVE orientation (not true compass)";
-                } else {
-                    warningElement.textContent = "Using ABSOLUTE orientation (magnetic north)";
-                }
-
-                const heading = event.alpha; // 0°-360° (magnetic north if absolute)
-                headingElement.textContent = Math.round(heading) + '°';
+            magnetometer.addEventListener('reading', () => {
+                // Calculate compass heading (0° = North, 90° = East, etc.)
+                const heading = Math.atan2(-magnetometer.y, magnetometer.x) * (180 / Math.PI);
+                const normalizedHeading = (heading + 360) % 360; // Ensure 0-360 range
+                headingElement.textContent = Math.round(normalizedHeading) + '°';
             });
+
+            magnetometer.addEventListener('error', (err) => {
+                headingElement.textContent = `Error: ${err.error.message}`;
+            });
+
+            magnetometer.start();
         } else {
-            warningElement.textContent = "DeviceOrientationEvent not supported";
+            headingElement.textContent = "Magnetometer not supported";
         }
     </script>
 </body>
