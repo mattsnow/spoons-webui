@@ -35,14 +35,27 @@
             color: #666;
         }
         
-        /* Compass view styles */
-        #compassView {
+        /* Direction view styles */
+        #directionView {
             display: none;
         }
-        #heading {
-            font-size: 3em;
-            font-weight: bold;
-            margin: 20px 0;
+        #directionArrow {
+            width: 200px;
+            height: 200px;
+            margin: 30px auto;
+            position: relative;
+        }
+        #arrow {
+            width: 0;
+            height: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-bottom: 100px solid red;
+            position: absolute;
+            left: 80px;
+            top: 50px;
+            transform-origin: 50% 100%;
+            transition: transform 0.2s ease-out;
         }
         #distance {
             font-size: 2em;
@@ -68,9 +81,11 @@
         <div id="pubList"></div>
     </div>
 
-    <div id="compassView">
+    <div id="directionView">
         <h1 id="pubTitle">Pub Name</h1>
-        <div id="heading">--°</div>
+        <div id="directionArrow">
+            <div id="arrow"></div>
+        </div>
         <div id="distance">-- m</div>
         <button id="backButton">Back to List</button>
     </div>
@@ -81,25 +96,18 @@
         let pubsData = [];
         let selectedPub = null;
         let watchId = null;
+        let heading = 0;
         
         // DOM elements
         const locationStatus = document.getElementById('locationStatus');
         const pubList = document.getElementById('pubList');
         const listView = document.getElementById('listView');
-        const compassView = document.getElementById('compassView');
+        const directionView = document.getElementById('directionView');
         const pubTitle = document.getElementById('pubTitle');
-        const headingElement = document.getElementById('heading');
+        const arrowElement = document.getElementById('arrow');
         const distanceElement = document.getElementById('distance');
         const backButton = document.getElementById('backButton');
         
-        // Compass variables
-        const CORRECTION_FACTOR = 11;
-        const SMOOTHING_WINDOW = 10;
-        const UPDATE_INTERVAL = 250;
-        let readings = [];
-        let lastUpdateTime = 0;
-        let magnetometer = null;
-
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
             backButton.addEventListener('click', goBackToList);
@@ -184,16 +192,16 @@
                     <div class="pubName">${pub.name}</div>
                     <div class="pubDistance">${pub.distance.toFixed(2)} km</div>
                 `;
-                pubElement.addEventListener('click', () => showCompassView(pub));
+                pubElement.addEventListener('click', () => showDirectionView(pub));
                 pubList.appendChild(pubElement);
             });
         }
 
-        function showCompassView(pub) {
+        function showDirectionView(pub) {
             selectedPub = pub;
             pubTitle.textContent = pub.name;
             listView.style.display = 'none';
-            compassView.style.display = 'block';
+            directionView.style.display = 'block';
             
             // Start compass and distance tracking
             startCompass();
@@ -202,22 +210,18 @@
 
         function goBackToList() {
             // Stop tracking
-            if (magnetometer) {
-                magnetometer.stop();
-                magnetometer = null;
-            }
             if (watchId) {
                 navigator.geolocation.clearWatch(watchId);
                 watchId = null;
             }
             
-            compassView.style.display = 'none';
+            directionView.style.display = 'none';
             listView.style.display = 'block';
         }
 
         function startCompass() {
             if ('Magnetometer' in window) {
-                magnetometer = new Magnetometer({ frequency: 10 });
+                const magnetometer = new Magnetometer({ frequency: 10 });
 
                 magnetometer.addEventListener('reading', () => {
                     // Pixel 6 axis correction
@@ -225,53 +229,34 @@
                     const y = -magnetometer.x;
                     
                     // Calculate current heading
-                    let heading = Math.atan2(y, x) * (180 / Math.PI);
-                    heading = (heading + CORRECTION_FACTOR + 360) % 360;
+                    heading = Math.atan2(y, x) * (180 / Math.PI);
+                    heading = (heading + 360) % 360;
                     
-                    // Add to readings buffer
-                    readings.push(heading);
-                    if (readings.length > SMOOTHING_WINDOW) {
-                        readings.shift();
-                    }
-                    
-                    // Throttle UI updates
-                    const now = performance.now();
-                    if (now - lastUpdateTime >= UPDATE_INTERVAL) {
-                        updateCompassDisplay();
-                        lastUpdateTime = now;
-                    }
+                    updateDirection();
                 });
 
                 magnetometer.addEventListener('error', (err) => {
-                    headingElement.textContent = `Compass Error: ${err.error.message}`;
+                    console.error('Compass Error:', err.error.message);
                 });
 
                 magnetometer.start();
             } else {
-                headingElement.textContent = "Compass not supported";
+                console.log("Compass not supported");
             }
         }
 
-        function updateCompassDisplay() {
-            if (readings.length === 0) return;
+        function updateDirection() {
+            if (!selectedPub || !userLocation) return;
             
-            // Calculate circular mean for compass headings
-            const sinSum = readings.reduce((sum, h) => sum + Math.sin(h * Math.PI/180), 0);
-            const cosSum = readings.reduce((sum, h) => sum + Math.cos(h * Math.PI/180), 0);
-            const avgHeading = (Math.atan2(sinSum, cosSum) * 180/Math.PI + 360) % 360;
+            const pubLat = parseFloat(selectedPub.latitude);
+            const pubLng = parseFloat(selectedPub.longitude);
+            const bearing = getBearing(userLocation.lat, userLocation.lng, pubLat, pubLng);
             
-            headingElement.textContent = Math.round(avgHeading) + '°';
+            // Calculate relative direction (0° means pub is straight ahead)
+            const relativeDirection = (bearing - heading + 360) % 360;
             
-            // Calculate bearing to pub
-            if (userLocation && selectedPub) {
-                const pubLat = parseFloat(selectedPub.latitude);
-                const pubLng = parseFloat(selectedPub.longitude);
-                const bearing = getBearing(userLocation.lat, userLocation.lng, pubLat, pubLng);
-                
-                // Calculate relative direction
-                const relativeDirection = (avgHeading - bearing + 360) % 360;
-                // You could add an arrow here pointing to the pub
-            }
+            // Rotate the arrow to point to the pub
+            arrowElement.style.transform = `rotate(${relativeDirection}deg)`;
         }
 
         function getBearing(lat1, lng1, lat2, lng2) {
@@ -291,6 +276,7 @@
                             lng: position.coords.longitude
                         };
                         updateDistance();
+                        updateDirection();
                     },
                     function(error) {
                         distanceElement.textContent = 'Location error: ' + error.message;
