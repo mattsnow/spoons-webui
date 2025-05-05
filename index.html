@@ -1,71 +1,140 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Smoothed Pixel 6 Compass</title>
+    <title>Nearest Pubs Finder</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-        #heading { font-size: 3em; font-weight: bold; }
+        body { 
+            font-family: Arial, sans-serif; 
+            text-align: center; 
+            margin-top: 20px; 
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        #locationStatus { margin-bottom: 20px; }
+        #pubList { 
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .pubCard {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: left;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .pubName {
+            font-weight: bold;
+            font-size: 1.2em;
+            margin-bottom: 5px;
+        }
+        .pubDistance {
+            color: #666;
+            margin-bottom: 8px;
+        }
+        a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
-    <h1>Pixel 6 Compass</h1>
-    <div id="heading">--°</div>
+    <h1>Find the Nearest Pubs</h1>
+    <div id="locationStatus">Getting your location...</div>
+    <div id="pubList"></div>
 
     <script>
-        const headingElement = document.getElementById('heading');
-        const CORRECTION_FACTOR = 11;
-        const SMOOTHING_WINDOW = 10; // Number of readings to average
-        const UPDATE_INTERVAL = 250; // ms between UI updates
-
-        // Circular buffer for smoothing
-        let readings = [];
-        let lastUpdateTime = 0;
-
-        if ('Magnetometer' in window) {
-            const magnetometer = new Magnetometer({ frequency: 10 });
-
-            magnetometer.addEventListener('reading', () => {
-                // Pixel 6 axis correction
-                const x = magnetometer.y;
-                const y = -magnetometer.x;
-                
-                // Calculate current heading
-                let heading = Math.atan2(y, x) * (180 / Math.PI);
-                heading = (heading + CORRECTION_FACTOR + 360) % 360;
-                
-                // Add to readings buffer
-                readings.push(heading);
-                if (readings.length > SMOOTHING_WINDOW) {
-                    readings.shift();
-                }
-                
-                // Throttle UI updates
-                const now = performance.now();
-                if (now - lastUpdateTime >= UPDATE_INTERVAL) {
-                    updateDisplay();
-                    lastUpdateTime = now;
-                }
-            });
-
-            function updateDisplay() {
-                if (readings.length === 0) return;
-                
-                // Calculate circular mean for compass headings
-                const sinSum = readings.reduce((sum, h) => sum + Math.sin(h * Math.PI/180), 0);
-                const cosSum = readings.reduce((sum, h) => sum + Math.cos(h * Math.PI/180), 0);
-                const avgHeading = (Math.atan2(sinSum, cosSum) * 180/Math.PI + 360) % 360;
-                
-                headingElement.textContent = Math.round(avgHeading) + '°';
+        document.addEventListener('DOMContentLoaded', function() {
+            const locationStatus = document.getElementById('locationStatus');
+            const pubList = document.getElementById('pubList');
+            
+            // Function to calculate distance between two coordinates in kilometers
+            function calculateDistance(lat1, lon1, lat2, lon2) {
+                const R = 6371; // Radius of the earth in km
+                const dLat = deg2rad(lat2 - lat1);
+                const dLon = deg2rad(lon2 - lon1);
+                const a = 
+                    Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+                    Math.sin(dLon/2) * Math.sin(dLon/2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                return R * c; // Distance in km
             }
 
-            magnetometer.addEventListener('error', (err) => {
-                headingElement.textContent = `Error: ${err.error.message}`;
-            });
+            function deg2rad(deg) {
+                return deg * (Math.PI/180);
+            }
 
-            magnetometer.start();
-        } else {
-            headingElement.textContent = "Magnetometer not supported";
-        }
+            // Format distance for display
+            function formatDistance(km) {
+                if (km < 1) {
+                    return Math.round(km * 1000) + ' meters';
+                } else {
+                    return km.toFixed(1) + ' km';
+                }
+            }
+
+            // Get user's location
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const userLat = position.coords.latitude;
+                        const userLng = position.coords.longitude;
+                        locationStatus.textContent = `Your location: ${userLat.toFixed(6)}, ${userLng.toFixed(6)}`;
+                        
+                        // Load pubs data and find nearest
+                        fetch('pubs_data_with_coords.json')
+                            .then(response => response.json())
+                            .then(pubs => {
+                                // Calculate distances for all pubs
+                                pubs.forEach(pub => {
+                                    pub.distance = calculateDistance(
+                                        userLat, 
+                                        userLng, 
+                                        parseFloat(pub.latitude), 
+                                        parseFloat(pub.longitude)
+                                    );
+                                });
+                                
+                                // Sort by distance and get top 3
+                                const nearestPubs = pubs.sort((a, b) => a.distance - b.distance).slice(0, 3);
+                                
+                                // Display results
+                                pubList.innerHTML = '';
+                                nearestPubs.forEach(pub => {
+                                    const pubElement = document.createElement('div');
+                                    pubElement.className = 'pubCard';
+                                    pubElement.innerHTML = `
+                                        <div class="pubName">${pub.name}</div>
+                                        <div class="pubDistance">${formatDistance(pub.distance)} away</div>
+                                        <div class="pubAddress">${pub.address}</div>
+                                        <a href="${pub.google_maps_link}" target="_blank">View on Google Maps</a>
+                                    `;
+                                    pubList.appendChild(pubElement);
+                                });
+                            })
+                            .catch(error => {
+                                locationStatus.textContent = 'Error loading pub data: ' + error.message;
+                            });
+                    },
+                    function(error) {
+                        locationStatus.textContent = 'Error getting location: ' + error.message;
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 5000,
+                        maximumAge: 0
+                    }
+                );
+            } else {
+                locationStatus.textContent = "Geolocation is not supported by this browser.";
+            }
+        });
     </script>
 </body>
 </html>

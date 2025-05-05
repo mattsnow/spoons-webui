@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Smoothed Pixel 6 Compass</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+        #heading { font-size: 3em; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Pixel 6 Compass</h1>
+    <div id="heading">--°</div>
+
+    <script>
+        const headingElement = document.getElementById('heading');
+        const CORRECTION_FACTOR = 11;
+        const SMOOTHING_WINDOW = 10; // Number of readings to average
+        const UPDATE_INTERVAL = 250; // ms between UI updates
+
+        // Circular buffer for smoothing
+        let readings = [];
+        let lastUpdateTime = 0;
+
+        if ('Magnetometer' in window) {
+            const magnetometer = new Magnetometer({ frequency: 10 });
+
+            magnetometer.addEventListener('reading', () => {
+                // Pixel 6 axis correction
+                const x = magnetometer.y;
+                const y = -magnetometer.x;
+                
+                // Calculate current heading
+                let heading = Math.atan2(y, x) * (180 / Math.PI);
+                heading = (heading + CORRECTION_FACTOR + 360) % 360;
+                
+                // Add to readings buffer
+                readings.push(heading);
+                if (readings.length > SMOOTHING_WINDOW) {
+                    readings.shift();
+                }
+                
+                // Throttle UI updates
+                const now = performance.now();
+                if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+                    updateDisplay();
+                    lastUpdateTime = now;
+                }
+            });
+
+            function updateDisplay() {
+                if (readings.length === 0) return;
+                
+                // Calculate circular mean for compass headings
+                const sinSum = readings.reduce((sum, h) => sum + Math.sin(h * Math.PI/180), 0);
+                const cosSum = readings.reduce((sum, h) => sum + Math.cos(h * Math.PI/180), 0);
+                const avgHeading = (Math.atan2(sinSum, cosSum) * 180/Math.PI + 360) % 360;
+                
+                headingElement.textContent = Math.round(avgHeading) + '°';
+            }
+
+            magnetometer.addEventListener('error', (err) => {
+                headingElement.textContent = `Error: ${err.error.message}`;
+            });
+
+            magnetometer.start();
+        } else {
+            headingElement.textContent = "Magnetometer not supported";
+        }
+    </script>
+</body>
+</html>
