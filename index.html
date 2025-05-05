@@ -6,7 +6,7 @@
         body { 
             font-family: Arial, sans-serif; 
             text-align: center; 
-            margin-top: 20px; 
+            margin: 20px;
             max-width: 800px;
             margin-left: auto;
             margin-right: auto;
@@ -15,112 +15,107 @@
         #pubList { 
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 10px;
             margin-top: 20px;
         }
         .pubCard {
             border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 15px;
-            text-align: left;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 5px;
+            padding: 10px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .pubCard:hover {
+            background-color: #f5f5f5;
         }
         .pubName {
             font-weight: bold;
-            font-size: 1.2em;
-            margin-bottom: 5px;
         }
         .pubDistance {
             color: #666;
-            margin-bottom: 8px;
         }
-        a {
-            color: #0066cc;
-            text-decoration: none;
+        
+        /* Compass view styles */
+        #compassView {
+            display: none;
         }
-        a:hover {
-            text-decoration: underline;
+        #heading {
+            font-size: 3em;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        #distance {
+            font-size: 2em;
+            margin: 20px 0;
+        }
+        #backButton {
+            padding: 10px 20px;
+            margin-top: 20px;
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #backButton:hover {
+            background: #e0e0e0;
         }
     </style>
 </head>
 <body>
-    <h1>Find the Nearest Pubs</h1>
-    <div id="locationStatus">Getting your location...</div>
-    <div id="pubList"></div>
+    <div id="listView">
+        <h1>Find the Nearest Pubs</h1>
+        <div id="locationStatus">Getting your location...</div>
+        <div id="pubList"></div>
+    </div>
+
+    <div id="compassView">
+        <h1 id="pubTitle">Pub Name</h1>
+        <div id="heading">--°</div>
+        <div id="distance">-- m</div>
+        <button id="backButton">Back to List</button>
+    </div>
 
     <script>
+        // Global variables
+        let userLocation = null;
+        let pubsData = [];
+        let selectedPub = null;
+        let watchId = null;
+        
+        // DOM elements
+        const locationStatus = document.getElementById('locationStatus');
+        const pubList = document.getElementById('pubList');
+        const listView = document.getElementById('listView');
+        const compassView = document.getElementById('compassView');
+        const pubTitle = document.getElementById('pubTitle');
+        const headingElement = document.getElementById('heading');
+        const distanceElement = document.getElementById('distance');
+        const backButton = document.getElementById('backButton');
+        
+        // Compass variables
+        const CORRECTION_FACTOR = 11;
+        const SMOOTHING_WINDOW = 10;
+        const UPDATE_INTERVAL = 250;
+        let readings = [];
+        let lastUpdateTime = 0;
+        let magnetometer = null;
+
+        // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
-            const locationStatus = document.getElementById('locationStatus');
-            const pubList = document.getElementById('pubList');
-            
-            // Function to calculate distance between two coordinates in kilometers
-            function calculateDistance(lat1, lon1, lat2, lon2) {
-                const R = 6371; // Radius of the earth in km
-                const dLat = deg2rad(lat2 - lat1);
-                const dLon = deg2rad(lon2 - lon1);
-                const a = 
-                    Math.sin(dLat/2) * Math.sin(dLat/2) +
-                    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
-                    Math.sin(dLon/2) * Math.sin(dLon/2);
-                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-                return R * c; // Distance in km
-            }
+            backButton.addEventListener('click', goBackToList);
+            getLocation();
+        });
 
-            function deg2rad(deg) {
-                return deg * (Math.PI/180);
-            }
-
-            // Format distance for display
-            function formatDistance(km) {
-                if (km < 1) {
-                    return Math.round(km * 1000) + ' meters';
-                } else {
-                    return km.toFixed(1) + ' km';
-                }
-            }
-
-            // Get user's location
+        function getLocation() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                     function(position) {
-                        const userLat = position.coords.latitude;
-                        const userLng = position.coords.longitude;
-                        locationStatus.textContent = `Your location: ${userLat.toFixed(6)}, ${userLng.toFixed(6)}`;
-                        
-                        // Load pubs data and find nearest
-                        fetch('pubs_data_with_coords.json')
-                            .then(response => response.json())
-                            .then(pubs => {
-                                // Calculate distances for all pubs
-                                pubs.forEach(pub => {
-                                    pub.distance = calculateDistance(
-                                        userLat, 
-                                        userLng, 
-                                        parseFloat(pub.latitude), 
-                                        parseFloat(pub.longitude)
-                                    );
-                                });
-                                
-                                // Sort by distance and get top 3
-                                const nearestPubs = pubs.sort((a, b) => a.distance - b.distance).slice(0, 3);
-                                
-                                // Display results
-                                pubList.innerHTML = '';
-                                nearestPubs.forEach(pub => {
-                                    const pubElement = document.createElement('div');
-                                    pubElement.className = 'pubCard';
-                                    pubElement.innerHTML = `
-                                        <div class="pubName">${pub.name}</div>
-                                        <div class="pubDistance">${formatDistance(pub.distance)} away</div>
-                                        <div class="pubAddress">${pub.address}</div>
-                                        <a href="${pub.google_maps_link}" target="_blank">View on Google Maps</a>
-                                    `;
-                                    pubList.appendChild(pubElement);
-                                });
-                            })
-                            .catch(error => {
-                                locationStatus.textContent = 'Error loading pub data: ' + error.message;
-                            });
+                        userLocation = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude
+                        };
+                        locationStatus.textContent = `Your location: ${userLocation.lat.toFixed(6)}, ${userLocation.lng.toFixed(6)}`;
+                        loadPubsData();
                     },
                     function(error) {
                         locationStatus.textContent = 'Error getting location: ' + error.message;
@@ -134,7 +129,197 @@
             } else {
                 locationStatus.textContent = "Geolocation is not supported by this browser.";
             }
-        });
+        }
+
+        function loadPubsData() {
+            fetch('pubs_data_with_coords.json')
+                .then(response => response.json())
+                .then(pubs => {
+                    pubsData = pubs;
+                    calculateDistances();
+                    displayPubList();
+                })
+                .catch(error => {
+                    locationStatus.textContent = 'Error loading pub data: ' + error.message;
+                });
+        }
+
+        function calculateDistances() {
+            pubsData.forEach(pub => {
+                pub.distance = calculateDistance(
+                    userLocation.lat, 
+                    userLocation.lng, 
+                    parseFloat(pub.latitude), 
+                    parseFloat(pub.longitude)
+                );
+            });
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Radius of the earth in km
+            const dLat = deg2rad(lat2 - lat1);
+            const dLon = deg2rad(lon2 - lon1);
+            const a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c; // Distance in km
+        }
+
+        function deg2rad(deg) {
+            return deg * (Math.PI/180);
+        }
+
+        function displayPubList() {
+            // Sort by distance and get top 3
+            const nearestPubs = pubsData.sort((a, b) => a.distance - b.distance).slice(0, 3);
+            
+            // Display results
+            pubList.innerHTML = '';
+            nearestPubs.forEach(pub => {
+                const pubElement = document.createElement('div');
+                pubElement.className = 'pubCard';
+                pubElement.innerHTML = `
+                    <div class="pubName">${pub.name}</div>
+                    <div class="pubDistance">${pub.distance.toFixed(2)} km</div>
+                `;
+                pubElement.addEventListener('click', () => showCompassView(pub));
+                pubList.appendChild(pubElement);
+            });
+        }
+
+        function showCompassView(pub) {
+            selectedPub = pub;
+            pubTitle.textContent = pub.name;
+            listView.style.display = 'none';
+            compassView.style.display = 'block';
+            
+            // Start compass and distance tracking
+            startCompass();
+            startDistanceTracking();
+        }
+
+        function goBackToList() {
+            // Stop tracking
+            if (magnetometer) {
+                magnetometer.stop();
+                magnetometer = null;
+            }
+            if (watchId) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+            
+            compassView.style.display = 'none';
+            listView.style.display = 'block';
+        }
+
+        function startCompass() {
+            if ('Magnetometer' in window) {
+                magnetometer = new Magnetometer({ frequency: 10 });
+
+                magnetometer.addEventListener('reading', () => {
+                    // Pixel 6 axis correction
+                    const x = magnetometer.y;
+                    const y = -magnetometer.x;
+                    
+                    // Calculate current heading
+                    let heading = Math.atan2(y, x) * (180 / Math.PI);
+                    heading = (heading + CORRECTION_FACTOR + 360) % 360;
+                    
+                    // Add to readings buffer
+                    readings.push(heading);
+                    if (readings.length > SMOOTHING_WINDOW) {
+                        readings.shift();
+                    }
+                    
+                    // Throttle UI updates
+                    const now = performance.now();
+                    if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+                        updateCompassDisplay();
+                        lastUpdateTime = now;
+                    }
+                });
+
+                magnetometer.addEventListener('error', (err) => {
+                    headingElement.textContent = `Compass Error: ${err.error.message}`;
+                });
+
+                magnetometer.start();
+            } else {
+                headingElement.textContent = "Compass not supported";
+            }
+        }
+
+        function updateCompassDisplay() {
+            if (readings.length === 0) return;
+            
+            // Calculate circular mean for compass headings
+            const sinSum = readings.reduce((sum, h) => sum + Math.sin(h * Math.PI/180), 0);
+            const cosSum = readings.reduce((sum, h) => sum + Math.cos(h * Math.PI/180), 0);
+            const avgHeading = (Math.atan2(sinSum, cosSum) * 180/Math.PI + 360) % 360;
+            
+            headingElement.textContent = Math.round(avgHeading) + '°';
+            
+            // Calculate bearing to pub
+            if (userLocation && selectedPub) {
+                const pubLat = parseFloat(selectedPub.latitude);
+                const pubLng = parseFloat(selectedPub.longitude);
+                const bearing = getBearing(userLocation.lat, userLocation.lng, pubLat, pubLng);
+                
+                // Calculate relative direction
+                const relativeDirection = (avgHeading - bearing + 360) % 360;
+                // You could add an arrow here pointing to the pub
+            }
+        }
+
+        function getBearing(lat1, lng1, lat2, lng2) {
+            const dLng = deg2rad(lng2 - lng1);
+            const y = Math.sin(dLng) * Math.cos(deg2rad(lat2));
+            const x = Math.cos(deg2rad(lat1)) * Math.sin(deg2rad(lat2)) - 
+                      Math.sin(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.cos(dLng);
+            return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+        }
+
+        function startDistanceTracking() {
+            if (navigator.geolocation) {
+                watchId = navigator.geolocation.watchPosition(
+                    function(position) {
+                        userLocation = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude
+                        };
+                        updateDistance();
+                    },
+                    function(error) {
+                        distanceElement.textContent = 'Location error: ' + error.message;
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        maximumAge: 1000
+                    }
+                );
+            }
+        }
+
+        function updateDistance() {
+            if (!selectedPub || !userLocation) return;
+            
+            const distance = calculateDistance(
+                userLocation.lat, 
+                userLocation.lng, 
+                parseFloat(selectedPub.latitude), 
+                parseFloat(selectedPub.longitude)
+            );
+            
+            // Display in meters when close
+            if (distance < 1) {
+                distanceElement.textContent = Math.round(distance * 1000) + ' m';
+            } else {
+                distanceElement.textContent = distance.toFixed(2) + ' km';
+            }
+        }
     </script>
 </body>
 </html>
